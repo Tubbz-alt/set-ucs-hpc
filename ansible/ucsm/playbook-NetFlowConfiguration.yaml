@@ -1,20 +1,6 @@
 - name: HPC Template
   gather_facts: no
   connection: local
-  hosts: ucsm
-  vars:
-    # Everything here needs to be verified against your local environment.
-    nfCollectorName: "CollectorName"
-    nfFlowMonName: "FlowMonName"
-    nfFlowExporterName: "ExporterName"
-    nfFlowMonSessionName: "FlowMonSession"
-    nfFlowMonRecord: "full-ipv4" # This should match an existing Flow Record Definition
-    nfCollectorUDPPort: "2055" # Should be the listening port on your netflow collector
-    nfCollectorNetMask: "255.255.255.0"
-    nfCollectorAddr: "10.82.128.109"
-    nfCollectorGateway: "10.82.128.126" # This is the gateway for the IPs assigned to the FIs as exporters.
-    #Not the gateway for the collector itself.
-
   tasks:
   - name: Verify inventory provides fabric specific variables required to configure NetFlow.
     fail:
