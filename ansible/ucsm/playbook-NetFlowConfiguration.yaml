@@ -1,0 +1,130 @@
+- name: HPC Template
+  gather_facts: no
+  connection: local
+  hosts: ucsm
+  vars:
+    # Everything here needs to be verified against your local environment.
+    nfCollectorName: "CollectorName"
+    nfFlowMonName: "FlowMonName"
+    nfFlowExporterName: "ExporterName"
+    nfFlowMonSessionName: "FlowMonSession"
+    nfFlowMonRecord: "full-ipv4" # This should match an existing Flow Record Definition
+    nfCollectorUDPPort: "2055" # Should be the listening port on your netflow collector
+    nfCollectorNetMask: "255.255.255.0"
+    nfCollectorAddr: "10.82.128.109"
+    nfCollectorGateway: "10.82.128.126" # This is the gateway for the IPs assigned to the FIs as exporters.
+    #Not the gateway for the collector itself.
+
+  tasks:
+  - name: Verify inventory provides fabric specific variables required to configure NetFlow.
+    fail:
+      msg: Please define nfExporterName, nfFI_A_addr, nfFI_B_addr and nfFI_NetMask as part of your inventory.
+    when: nfExporterName is not defined or nfFI_A_addr is not defined or nfFI_B_addr is not defined or nfFI_NetMask is not defined
+      # nfExporterName - Name of the subnet (Case Sensitive) that the export will send flows on.
+      #                  Must be pre-configured in the VLANs configuration the fabric interconnects.
+      # nfF_A_addr - The IP address used to export Flows from FI A
+      # nfF_B_addr - The IP address used to export Flows from FI B
+      # nfFI_NetMask - The subnet mask for the exporter
+      # These variables are assigned by inventory to ensure we don't write the same IPs to more then one device.
+
+  - name: Configure exporter profile
+    ucs_managed_objects:
+      hostname: "{{ ucsm_host }}"
+      username: "{{ ucsm_user }}"
+      password: "{{ ucsm_password }}"
+      objects:
+      - module: ucsmsdk.mometa.vnic.VnicEtherIf
+        class: VnicEtherIf
+        properties:
+          parent_mo_or_dn: "fabric/lanmon/eth-flow-monitoring/flow-exporter-profile-default"
+          name: "{{ nfExporterName }}"
+        children:
+          - module: ucsmsdk.mometa.fabric.FabricNetflowIPv4Addr
+            class: FabricNetflowIPv4Addr
+            properties:
+              subnet: "{{ nfFI_NetMask }}"
+              fabric_id: "A"
+              addr: "{{ nfFI_A_addr }}"
+          - module: ucsmsdk.mometa.fabric.FabricNetflowIPv4Addr
+            class: FabricNetflowIPv4Addr
+            properties:
+              subnet: "{{ nfFI_NetMask }}"
+              fabric_id: "B"
+              addr: "{{ nfFI_B_addr }}"          
+  
+  - name: Configure Flow Collector
+    ucs_managed_objects:
+      hostname: "{{ ucsm_host }}"
+      username: "{{ ucsm_user }}"
+      password: "{{ ucsm_password }}"
+      objects:
+        - module: ucsmsdk.mometa.fabric.FabricNetflowCollector
+          class: FabricNetflowCollector
+          properties:
+            parent_mo_or_dn: "fabric/lanmon/eth-flow-monitoring"
+            source_vlan: "{{ nfExporterName }}"
+            name: "{{ nfCollectorName }}"
+            port: "{{ nfCollectorUDPPort }}"
+          children:
+            - module: ucsmsdk.mometa.ip.IpIpV4StaticTargetAddr
+              class: IpIpV4StaticTargetAddr
+              properties:
+                subnet: "{{ nfCollectorNetMask }}"
+                def_gw: "{{ nfCollectorGateway }}"
+                addr: "{{ nfCollectorAddr }}"
+  - name: Configure flow monitor exporter
+    ucs_managed_objects:
+      hostname: "{{ ucsm_host }}"
+      username: "{{ ucsm_user }}"
+      password: "{{ ucsm_password }}"
+      objects:
+        - module: ucsmsdk.mometa.fabric.FabricNetflowMonExporter
+          class: FabricNetflowMonExporter
+          properties:
+            parent_mo_or_dn: "fabric/lanmon/eth-flow-monitoring"
+            flow_mon_collector: "{{ nfCollectorName }}"
+            flow_exp_profile: "default"
+            name: "{{ nfFlowExporterName }}"
+  - name: Configure Fabric Netflow Monitor
+    ucs_managed_objects:
+      hostname: "{{ ucsm_host }}"
+      username: "{{ ucsm_user }}"
+      password: "{{ ucsm_password }}"
+      objects:      
+        - module: ucsmsdk.mometa.fabric.FabricNetflowMonitor
+          class: FabricNetflowMonitor 
+          properties:
+            parent_mo_or_dn: "fabric/lanmon/eth-flow-monitoring"
+            name: "{{ nfFlowMonName }}"
+            flow_mon_record_def: "{{ nfFlowMonRecord }}"
+          children:
+            - module: ucsmsdk.mometa.fabric.FabricNetflowMonExporterRef
+              class: FabricNetflowMonExporterRef
+              properties:
+                index: "0" 
+                nf_mon_exporter_name: "{{ nfFlowExporterName }}"
+  - name: Configure Flow Monitoring Session
+    ucs_managed_objects:
+      hostname: "{{ ucsm_host }}"
+      username: "{{ ucsm_user }}"
+      password: "{{ ucsm_password }}"
+      objects:
+        - module: ucsmsdk.mometa.fabric.FabricNetflowMonSession
+          class: FabricNetflowMonSession
+          properties:
+            parent_mo_or_dn: "fabric/lanmon/eth-flow-monitoring"
+            name: "{{ nfFlowMonSessionName }}"
+          children:
+            - module: ucsmsdk.mometa.fabric.FabricNetflowMonitorRef
+              class: FabricNetflowMonitorRef
+              properties:
+                nf_monitor_name: "{{ nfFlowMonName }}"
+                index: "0"
+                direction: "receive"
+            - module: ucsmsdk.mometa.fabric.FabricNetflowMonitorRef
+              class: FabricNetflowMonitorRef
+              properties:
+                nf_monitor_name: "{{ nfFlowMonName }}"
+                index: "0"
+                direction: "transmit"                
+

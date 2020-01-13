@@ -1,0 +1,27 @@
+[all:vars]
+ucsm_user=admin
+ucsm_password=SomePassword
+
+[ucsm]
+10.1.0.1 ucsm_host=10.1.0.1
+
+[ucsm:vars]
+#An IP address for each FI that will be used for NetFlow Exporting
+#These IPs must not be in use anywhere else on the network.
+nfFI_A_addr='10.0.0.101'
+nfFI_B_addr='10.0.0.102'
+# The subnet mask for the export VLAN
+nfFI_NetMask='255.255.255.128'
+# The VLAN Netflow will be set over
+nfExporterName='L3-Labmain-VLAN128'
+
+nfCollectorName: "CollectorName"
+nfFlowMonName: "FlowMonName"
+nfFlowExporterName: "ExporterName"
+nfFlowMonSessionName: "FlowMonSession"
+nfFlowMonRecord: "full-ipv4"
+nfCollectorUDPPort: "2055"
+nfCollectorNetMask: "255.255.255.0"
+nfCollectorAddr: "10.82.128.10"
+nfCollectorGateway: "10.82.128.126"
+   
